@@ -1,3 +1,13 @@
+"""
+C-UAS Simulation / Air Defense Software
+
+By: Mekhi Johnson
+
+*Project still in progress*
+
+"""
+
+
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List
