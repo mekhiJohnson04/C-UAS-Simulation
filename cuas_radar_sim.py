@@ -95,12 +95,15 @@ class State(str, Enum):
     COASTING = "target.coasting" # used to be real, but hasn't been seen recently; predicting forward
     DROPPED = "target.dropped" # Dead; Remove the track
 
-class State_Threshold(float, Enum):
+class State_Threshold:
     CONFIRM_CONFIDENCE = 0.6
     COAST_MISSES = 2 # 2 misses in a row starts coasting
     DROP_MISSES_TENTATIVE = 2 # tentative dies quickly
     DROP_MISSES_CONFIRMED = 5 # gets more grace
-    DROP_AGE = 5 | 10
+    DROP_AGE_FRAMES = 5  # if: now - last_seen_time exceeds DROP_AGE_FRAMES * self.dt
+    COAST_MISS_STREAK = 2 # 2 consecutive misses -> start coasting
+    DROP_MISS_STREAK_TENT = 2 # tentative drops fast
+    DROP_MISS_STREAK_CONFIRMED = 5 # confirmed gets more grace
 
 class Candidate:
         measurement: np.ndarray
@@ -119,12 +122,11 @@ class Track:
     misses: int
     last_update_time: datetime
     last_seen_time: datetime
-    threshold: State_Threshold
     hit_streak: int | float # consecutive hits for confidence & state determination
     miss_streak: int | float # consecutive misses for confidence & state determination
 
     # everything for the most part is set to None or 0 by default, which means the state must be Dropped by default as well
-    def __init__(self, track_id, state: State = State.DROPPED, confidence=None, tracker=None, hits=0, misses=0, last_update_time=None, last_seen_time=None, threshold=None, hit_streak=0, miss_streak=0):
+    def __init__(self, track_id, state: State = State.DROPPED, confidence=None, tracker=None, hits=0, misses=0, last_update_time=None, last_seen_time=None, hit_streak=0, miss_streak=0):
         self.track_id=track_id
         self.state=state 
         self.confidence=confidence
@@ -133,7 +135,6 @@ class Track:
         self.misses=misses
         self.last_update_time=last_update_time
         self.last_seen_time=last_seen_time
-        self.threshold=threshold
         self.hit_streak=hit_streak
         self.miss_streak=miss_streak
         
@@ -155,8 +156,8 @@ class Track:
     def try_update(self, measurements: list, gate_radius: float) -> bool:
         # Pick the best measurement for this track (if any) using predicted_state + gating; return True if a hit was used.
         now = datetime.now(timezone.utc)
-        P_pred, V_pred  = self.predict()
-        candidates = List[Candidate] = []
+        P_pred = self.predict()
+        candidates = []
         x_p = P_pred[0] # position x-coord
         y_p = P_pred[1] # position y-coord
 
@@ -231,8 +232,36 @@ class Track:
 
     def evaluate_state_transition(self) -> None:
         # Use hits/misses/confidence/time-since-seen to transition between TENTATIVE ↔ CONFIRMED ↔ COASTING → DROPPED.
+        """
+        Drop conditions first (dead beats everything)
 
-        if 
+        else if Confirmed conditions
+
+        else if Coasting conditions
+
+        else Tentative (default)
+
+        The age frames is just a time-based drop rule saying "Even if i keep coasting, I refuse to tracek alive if i havent seen it for
+        too many frames
+        """
+        DROP_AGE_SECONDS = State_Threshold.DROP_AGE_FRAMES * self.tracker.dt
+        now = datetime.now(timezone.utc) # current frame time
+        age_seconds = now - self.last_seen_time 
+        age_frames = age_seconds / self.tracker.dt # catches long-term unseen tracks (prevents zombies)
+
+        if age_frames >= State_Threshold.DROP_AGE_FRAMES:
+            self.state = State.DROPPED
+
+        elif self.confidence >= State_Threshold.CONFIRM_CONFIDENCE:
+            self.state = State.CONFIRMED
+        
+        elif 0.4 >= self.confidence >= 0.2:
+            self.state = State.TENTATIVE
+
+        elif self.miss_streak == State_Threshold.COAST_MISS_STREAK:
+            self.state = State.COASTING
+        elif 
+           
 
 
 
