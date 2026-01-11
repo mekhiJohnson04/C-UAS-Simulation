@@ -244,23 +244,37 @@ class Track:
         The age frames is just a time-based drop rule saying "Even if i keep coasting, I refuse to tracek alive if i havent seen it for
         too many frames
         """
-        DROP_AGE_SECONDS = State_Threshold.DROP_AGE_FRAMES * self.tracker.dt
+        # DROP_AGE_SECONDS = State_Threshold.DROP_AGE_FRAMES * self.tracker.dt
+
         now = datetime.now(timezone.utc) # current frame time
-        age_seconds = now - self.last_seen_time 
-        age_frames = age_seconds / self.tracker.dt # catches long-term unseen tracks (prevents zombies)
+        if self.last_seen_time is not              None:
+        
+            age_seconds = (now - self.last_seen_time).total_seconds()
+            age_frames = age_seconds / self.tracker.dt # catches long-term unseen tracks (prevents zombies)
 
-        if age_frames >= State_Threshold.DROP_AGE_FRAMES:
-            self.state = State.DROPPED
-
+            if age_frames >= State_Threshold.DROP_AGE_FRAMES:
+                self.state = State.DROPPED
+                return
+        
+        elif self.state is State.TENTATIVE:
+            if self.miss_streak >= State_Threshold.DROP_MISS_STREAK_TENT:
+                self.state = State.DROPPED
+                return
+        
+        elif self.state is State.CONFIRMED or self.state is State.COASTING:
+            if self.miss_streak >= State_Threshold.DROP_MISS_STREAK_CONFIRMED:
+                self.state = State.DROPPED
+                return 
+            
+            elif self.miss_streak >= State_Threshold.COAST_MISS_STREAK:
+                self.state = State.COASTING
+               
         elif self.confidence >= State_Threshold.CONFIRM_CONFIDENCE:
             self.state = State.CONFIRMED
-        
-        elif 0.4 >= self.confidence >= 0.2:
+    
+        else:
             self.state = State.TENTATIVE
 
-        elif self.miss_streak == State_Threshold.COAST_MISS_STREAK:
-            self.state = State.COASTING
-        elif 
            
 
 
