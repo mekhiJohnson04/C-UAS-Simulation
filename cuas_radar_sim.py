@@ -11,6 +11,7 @@ By: Mekhi Johnson
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List
+import uuid
 
 # Target model ("the drone")
 class Target:
@@ -116,7 +117,7 @@ class Candidate:
 class Track:
     track_id: int
     state: State 
-    confidence: int | float
+    confidence: int | float = 0.0
     tracker: AlphaBetaTracker
     hits: int
     misses: int
@@ -156,10 +157,9 @@ class Track:
     def try_update(self, measurements: list, gate_radius: float) -> bool:
         # Pick the best measurement for this track (if any) using predicted_state + gating; return True if a hit was used.
         now = datetime.now(timezone.utc)
-        P_pred = self.predict()
+        P_pred, V_pred = self.predict()
         candidates = []
-        x_p = P_pred[0] # position x-coord
-        y_p = P_pred[1] # position y-coord
+        x_p, y_p = P_pred[0], P_pred[1] # position x-coord, position y-coord
 
         for meas in measurements: # for every measurement access the position & measurement coordinates and calculate distance
 
@@ -247,7 +247,7 @@ class Track:
         # DROP_AGE_SECONDS = State_Threshold.DROP_AGE_FRAMES * self.tracker.dt
 
         now = datetime.now(timezone.utc) # current frame time
-        if self.last_seen_time is not              None:
+        if self.last_seen_time is not None:
         
             age_seconds = (now - self.last_seen_time).total_seconds()
             age_frames = age_seconds / self.tracker.dt # catches long-term unseen tracks (prevents zombies)
@@ -275,10 +275,6 @@ class Track:
         else:
             self.state = State.TENTATIVE
 
-           
-
-
-
 
     def is_dropped(self) -> bool:
         # Return True if the track is in DROPPED state (or otherwise considered dead and removable).
@@ -303,7 +299,9 @@ class Track:
     
     def age(self, now: datetime) -> float:
         # Return how long it has been since the last measurement hit (or since creation), used for timeouts/decay.
-        
+        if self.last_seen_time is not None:
+            return (now - self.last_seen_time).total_seconds()
+
         
 
 
@@ -320,6 +318,7 @@ def run_simulation(total_time=60.0, dt=1.0, noise_std=5.0, alpha=0.3, beta=0.05)
     num_steps = int(total_time / dt)
     # times = np.arange(0, total_time, dt) # Not used, but fine to keep
 
+    now = datetime.now(timezone.utc)
     # Create a target with some initial position and velocity
     target = Target(
         x0=0.0,
@@ -351,6 +350,18 @@ def run_simulation(total_time=60.0, dt=1.0, noise_std=5.0, alpha=0.3, beta=0.05)
                 beta=beta,
                 dt=dt
             )
+            track = Track(
+                track_id=uuid.uuid4(),
+                state=State.TENTATIVE, # default
+                confidence=0.0,
+                tracker=tracker,
+                hits=0,
+                misses=0,
+                last_update_time=now,
+                last_seen_time=now,
+                hit_streak=0,
+                miss_streak=0
+            )
 
         # 4. Update tracker with current measurement
         est_position, est_velocity = tracker.update(measurement=meas)
@@ -360,6 +371,11 @@ def run_simulation(total_time=60.0, dt=1.0, noise_std=5.0, alpha=0.3, beta=0.05)
         # BUG FIX 2: Appending 'meas' instead of the 'measurements' list itself
         measurements.append(meas) 
         estimates.append(est_position)
+
+        gate_radius = 3 * noise_std
+       
+        for meas in measurements:
+            track.try_update(measurements=[meas], gate_radius=gate_radius)
 
     # Convert lists to NumPy arrays for easier slicing
     true_positions = np.vstack(true_positions)
