@@ -324,7 +324,8 @@ def run_simulation(total_time=60.0, dt=1.0, noise_std=5.0, alpha=0.3, beta=0.05)
         x0=0.0,
         y0=0.0,
         vx=2.0, # move 2 units per second in x
-        vy=1.0 # move 1 unit per second in y
+        vy=2.0, # move 1 unit per second in y
+        
         )
     
     # Storage for plotting
