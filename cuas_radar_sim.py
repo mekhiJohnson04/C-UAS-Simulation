@@ -12,10 +12,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import List
 import uuid
+import random
+import math
 
 # Target model ("the drone")
 class Target:
-    def __init__(self, x0, y0, vx, vy):
+    def __init__(self, x0, y0, vx, vy, speed=3, heading=0, turn_rate=0, timer=random.uniform(1, 5), min_angle=math.radians(-30), max_angle=math.radians(30)):
         """
         x0, y0 : the initial position
         vx, vy : velocity components (units per second)
@@ -24,8 +26,24 @@ class Target:
         self.y = y0
         self.vx = vx
         self.vy = vy
+        self.speed = speed # Units / second
+        self.heading = heading # direction angle (radians or degrees )
+        self.turn_rate = turn_rate # so the turns are gradual instead of instant
+        self.timer = timer 
+        self.min_angle = min_angle
+        self.max_angle = max_angle
 
-    def update(self, dt): # Move the target forward in time by dt seconds
+    def update(self, dt): # Move the target forward in time by dt seconds !!! This is where the turn steps will happen now !!!
+        self.timer -= dt
+
+        if self.timer <= 0:
+            random_turn_angle = random.uniform(self.min_angle, self.max_angle) # just sampled delta for the specific turn, so no need to be a persistent state like the rest
+            self.heading += random_turn_angle # when a turn is triggered
+            self.timer = random.uniform(1, 5)
+
+        self.vx = self.speed * math.cos(self.heading)
+        self.vy = self.speed * math.sin(self.heading)
+
         self.x += self.vx * dt
         self.y += self.vy * dt
 
